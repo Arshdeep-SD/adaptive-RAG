@@ -1,0 +1,107 @@
+import Ajv from "ajv";
+
+// Mirror of backend/schemas/ui_schema.json — kept in sync manually
+const schema = {
+  $schema: "http://json-schema.org/draft-07/schema#",
+  title: "UISchema",
+  type: "object",
+  required: ["version", "title", "layout", "data_bindings"],
+  additionalProperties: false,
+  properties: {
+    version: { type: "string", enum: ["1.0"] },
+    title: { type: "string" },
+    layout: { $ref: "#/$defs/LayoutNode" },
+    data_bindings: { type: "object" },
+  },
+  $defs: {
+    LayoutNode: {
+      oneOf: [
+        { $ref: "#/$defs/StackNode" },
+        { $ref: "#/$defs/GridNode" },
+        { $ref: "#/$defs/TabsNode" },
+        { $ref: "#/$defs/SectionNode" },
+        { $ref: "#/$defs/ComponentNode" },
+      ],
+    },
+    StackNode: {
+      type: "object",
+      required: ["type", "direction", "children"],
+      additionalProperties: false,
+      properties: {
+        type: { type: "string", enum: ["stack"] },
+        direction: { type: "string", enum: ["vertical", "horizontal"] },
+        children: { type: "array", items: { $ref: "#/$defs/LayoutNode" } },
+      },
+    },
+    GridNode: {
+      type: "object",
+      required: ["type", "columns", "children"],
+      additionalProperties: false,
+      properties: {
+        type: { type: "string", enum: ["grid"] },
+        columns: { type: "integer", minimum: 1, maximum: 6 },
+        children: { type: "array", items: { $ref: "#/$defs/LayoutNode" } },
+      },
+    },
+    TabsNode: {
+      type: "object",
+      required: ["type", "tabs"],
+      additionalProperties: false,
+      properties: {
+        type: { type: "string", enum: ["tabs"] },
+        tabs: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["label", "content"],
+            additionalProperties: false,
+            properties: {
+              label: { type: "string" },
+              content: { $ref: "#/$defs/LayoutNode" },
+            },
+          },
+        },
+      },
+    },
+    SectionNode: {
+      type: "object",
+      required: ["type", "heading", "child"],
+      additionalProperties: false,
+      properties: {
+        type: { type: "string", enum: ["section"] },
+        heading: { type: "string" },
+        child: { $ref: "#/$defs/LayoutNode" },
+      },
+    },
+    ComponentNode: {
+      type: "object",
+      required: ["type", "component", "props"],
+      additionalProperties: false,
+      properties: {
+        type: { type: "string", enum: ["component"] },
+        component: {
+          type: "string",
+          enum: [
+            "text",
+            "kpi",
+            "table",
+            "chart",
+            "card",
+            "list",
+            "timeline",
+            "form",
+            "source_refs",
+            "image_viewer",
+            "code_editor",
+            "audio_player",
+            "pdf_viewer",
+          ],
+        },
+        props: { type: "object" },
+      },
+    },
+  },
+} as const;
+
+const ajv = new Ajv({ allErrors: true, strict: false });
+export const validateUISchema = ajv.compile(schema);

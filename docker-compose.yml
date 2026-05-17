@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      USE_LOCAL_STORE: "true"
+      EMBEDDING_PROVIDER: "local"
+      LOCAL_STORAGE_PATH: "/tmp/adaptive-rag"
+    volumes:
+      - ./backend:/var/task
+    command: >
+      uvicorn backend.api.main:app
+      --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - localstack
+
+  localstack:
+    image: localstack/localstack:3
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3,dynamodb
+      DEFAULT_REGION: us-west-2
+      AWS_DEFAULT_REGION: us-west-2
+    volumes:
+      - localstack_data:/var/lib/localstack
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install && npm run dev"
+    environment:
+      VITE_API_URL: ""
+
+volumes:
+  localstack_data:
