@@ -17,9 +17,11 @@ class Settings(BaseSettings):
 
     # --- local vs AWS toggle ---
     USE_LOCAL_STORE: bool = True
+    USE_LOCAL_DB: bool = True  # Use SQLite instead of DynamoDB
 
     # --- embedding ---
     EMBEDDING_PROVIDER: Literal["local", "bedrock"] = "local"
+    LOCAL_EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"  # model name for sentence-transformers
 
     # --- AWS ---
     AWS_REGION: str = "us-west-2"
@@ -31,17 +33,16 @@ class Settings(BaseSettings):
     JOBS_TABLE: str = "Jobs"
     RECORDS_TABLE: str = "Records"
     UI_CACHE_TABLE: str = "UICache"
+    USERS_TABLE: str = "Users"
 
     # --- S3 ---
     S3_ENDPOINT: str | None = None
     S3_BUCKET: str = "adaptive-rag-dev"
+    LOCAL_STORAGE_PATH: str = "/tmp/adaptive-rag"  # Local filesystem storage path
 
     # --- OpenSearch ---
     OPENSEARCH_ENDPOINT: str | None = None
     OPENSEARCH_INDEX: str = "records-v1-local"
-
-    # --- local storage ---
-    LOCAL_STORAGE_PATH: str = "/tmp/adaptive-rag"
 
     # --- Ollama (local open-source LLM, no API key required) ---
     OLLAMA_BASE_URL: str = "http://localhost:11434"

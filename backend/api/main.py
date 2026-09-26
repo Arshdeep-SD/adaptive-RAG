@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,24 +15,53 @@ from backend.api.routers import auth as auth_router
 logger = logging.getLogger(__name__)
 
 
+async def _get_local_stores(settings: Settings) -> tuple:
+    """Return local stores (SQLite or in-memory) based on settings."""
+    if settings.USE_LOCAL_DB:
+        # Use SQLite for persistence when USE_LOCAL_DB is True
+        db_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(db_dir, "..", "..", "db", "ragsqlite.db")
+        
+        from backend.db.sqlite_store import (
+            LocalJobStore,
+            LocalRecordStore,
+            LocalUserStore,
+            LocalUICacheStore,
+        )
+        
+        job_store = LocalJobStore(db_path)
+        record_store = LocalRecordStore(db_path)
+        user_store = LocalUserStore(db_path)
+        ui_cache_store = LocalUICacheStore(db_path)
+        
+        logger.info(f"Using SQLite database: {db_path}")
+    else:
+        # Use in-memory stores when USE_LOCAL_DB is False
+        from backend.db.local_store import (
+            LocalJobStore,
+            LocalRecordStore,
+            LocalUserStore,
+            LocalUICacheStore,
+        )
+        
+        job_store = LocalJobStore()
+        record_store = LocalRecordStore()
+        user_store = LocalUserStore()
+        ui_cache_store = LocalUICacheStore()
+        
+        logger.info("Using in-memory stores")
+    
+    return job_store, record_store, user_store, ui_cache_store
+
+
 async def _seed_admin(settings: Settings) -> None:
     """Create the initial admin user if one doesn't already exist."""
     import uuid
     from passlib.context import CryptContext
-    from backend.db.local_store import _now_iso
+    
+    _, _, user_store, _ = await _get_local_stores(settings)
 
-    if settings.USE_LOCAL_STORE:
-        from backend.auth.store import _local_user_store
-        store = _local_user_store()
-    else:
-        from backend.db.dynamo import DynamoUserStore
-        store = DynamoUserStore(
-            table_name=settings.USERS_TABLE,
-            region=settings.AWS_REGION,
-            endpoint_url=settings.DYNAMO_ENDPOINT,
-        )
-
-    existing = await store.get_by_username(settings.ADMIN_USERNAME)
+    existing = await user_store.get_by_username(settings.ADMIN_USERNAME)
     if existing:
         return
 
@@ -41,25 +71,16 @@ async def _seed_admin(settings: Settings) -> None:
         "username": settings.ADMIN_USERNAME,
         "hashed_password": pwd_context.hash(settings.ADMIN_PASSWORD),
         "role": "admin",
-        "created_at": _now_iso(),
+        "created_at": "",  # SQLite doesn't need this for users table
     }
-    await store.create(user)
+    await user_store.create(user)
     logger.info("Seeded admin user: %s", settings.ADMIN_USERNAME)
 
 
 async def _reset_stuck_jobs(settings: Settings) -> None:
     """Mark any PROCESSING or PENDING jobs as FAILED — they were interrupted by a server restart."""
-    if settings.USE_LOCAL_STORE:
-        from backend.db.local_store import LocalJobStore
-        from backend.api.deps import _local_job_store
-        job_store = _local_job_store()
-    else:
-        from backend.db.dynamo import DynamoJobStore
-        job_store = DynamoJobStore(
-            table_name=settings.JOBS_TABLE,
-            region=settings.AWS_REGION,
-            endpoint_url=settings.DYNAMO_ENDPOINT,
-        )
+    job_store, _, _, _ = await _get_local_stores(settings)
+    
     all_jobs = await job_store.list_all()
     stuck = [j for j in all_jobs if j.get("status") in ("PROCESSING", "PENDING")]
     for job in stuck:
@@ -75,10 +96,6 @@ async def _reset_stuck_jobs(settings: Settings) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    if settings.USE_LOCAL_STORE:
-        logger.info("Restoring persisted jobs from disk…")
-        from backend.pipeline.reload import reload_all_jobs
-        await reload_all_jobs(settings)
     await _reset_stuck_jobs(settings)
     await _seed_admin(settings)
     yield
