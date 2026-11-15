@@ -1,0 +1,29 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Terraform / build
+.terraform/
+*.tfstate
+*.tfstate.*
+.aws-sam/
+coverage/
+.coverage
